@@ -328,6 +328,7 @@ class RollingBackTest:
                     self.mklregressor.dualWeightJacobian()
                     searchend = timer()
                     hypersearchtime = hypersearchtime + (searchend - searchstart)
+                    
                 else :
                     self.updateHyperParam(self.currentHyperParam)                    
                     self.mklregressor.fit(X_train,T_train,y_train)
@@ -343,7 +344,7 @@ class RollingBackTest:
             failImpute= imputationResult.get('failImputeFlag')
 
             if (countMissing <= 0.1 * self.order and failImpute == 0):
-                #print("prediction for step ", t-teststart)
+                print("prediction for step ", t-teststart)
                 X_test = np.zeros((1,self.order))
                 X_test[0,:] = np.copy(imputedFeature)
                 X_test = X_test - X_mean 

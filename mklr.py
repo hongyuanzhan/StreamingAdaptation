@@ -8,6 +8,7 @@ Created on Wed Sep 20 16:28:46 2017
 
 import numpy as np 
 import copy
+from timeit import default_timer as timer
 
 
 class SqExpKernel:
@@ -76,9 +77,11 @@ class ARDKernel:
     def computeKernel(self,X,xnew,requireDerivative = False):
 
         [N,p] = X.shape
-        grammatrix = np.dot(xnew , np.dot(np.diag(self.componentwiseScale.reshape(p)) , np.transpose(X)) )
+        b = xnew.dot(np.diag(self.componentwiseScale.reshape(p)))
+        grammatrix = b.dot(np.transpose(X)) 
+        xnewARDnorm = xnew.dot(np.diag(self.componentwiseScale.reshape(p))).dot(np.transpose(xnew))
         kernel = (-2 * grammatrix 
-                  + xnew.dot(np.diag(self.componentwiseScale.reshape(p))).dot(np.transpose(xnew)) * np.ones((1,N))
+                  + xnewARDnorm * np.ones((1,N))
                   + self.normInARD.reshape((1,N)) )
      
         kernel = np.exp(-kernel)
@@ -461,50 +464,57 @@ class MKLregression:
         jacobian_regularization = -self.inverseKernelRidgeDesign.dot(self.fittedweight) 
         self.jacobian_regularization = np.copy(jacobian_regularization)
         resultDict.update({'Jacobian_Regularization':jacobian_regularization})
- 
+        
         if self.squareExponentialKernel is not None:
-            
-            jacobian_SqExp_EnsWeight = -self.inverseKernelRidgeDesign.dot(self.squareExponentialKernel.kernelmatrix).dot(self.fittedweight)             
+            b = self.squareExponentialKernel.kernelmatrix.dot(self.fittedweight)      
+            jacobian_SqExp_EnsWeight = -self.inverseKernelRidgeDesign.dot(b)             
             self.jacobian_SqExp_EnsWeight = np.copy(jacobian_SqExp_EnsWeight)
             resultDict.update({'Jacobian_SQEXP_ensweight':jacobian_SqExp_EnsWeight})
-            
-            jacobian_SqExp_kernelscale = -self.inverseKernelRidgeDesign.dot(self.weight_squareExponentialKernel * self.squareExponentialKernel.kernelmatrixDerivative).dot(self.fittedweight)
+
+            b = self.weight_squareExponentialKernel * self.squareExponentialKernel.kernelmatrixDerivative.dot(self.fittedweight)            
+            jacobian_SqExp_kernelscale = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_SqExp_kernelscale = np.copy(jacobian_SqExp_kernelscale)
             resultDict.update({'Jacobian_SQEXP_kernelscale':jacobian_SqExp_kernelscale})
             
         if self.periodicityKernel is not None:
             
-            jacobian_PRD_EnsWeight = -self.inverseKernelRidgeDesign.dot(self.periodicityKernel.kernelmatrix).dot(self.fittedweight)
+            b = self.periodicityKernel.kernelmatrix.dot(self.fittedweight)
+            jacobian_PRD_EnsWeight = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_PRD_EnsWeight = np.copy(jacobian_PRD_EnsWeight)
             resultDict.update({'Jacobian_PRD_ensweight':jacobian_PRD_EnsWeight})
             
-            jacobian_PRD_kernelscale = -self.inverseKernelRidgeDesign.dot(self.weight_periodicityKernel*self.periodicityKernel.kernelmatrixDerivative_scale).dot(self.fittedweight)
+            b= self.weight_periodicityKernel*self.periodicityKernel.kernelmatrixDerivative_scale.dot(self.fittedweight)
+            jacobian_PRD_kernelscale = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_PRD_kernelscale = np.copy(jacobian_PRD_kernelscale)
             resultDict.update({'Jacobian_PRD_kernelscale':jacobian_PRD_kernelscale})
 
-            jacobian_PRD_period = -self.inverseKernelRidgeDesign.dot(self.weight_periodicityKernel*self.periodicityKernel.kernelmatrixDerivative_period).dot(self.fittedweight)
+            b=self.weight_periodicityKernel*self.periodicityKernel.kernelmatrixDerivative_period.dot(self.fittedweight)
+            jacobian_PRD_period = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_PRD_period = np.copy(jacobian_PRD_period)
             resultDict.update({'Jacobian_PRD_period':jacobian_PRD_period})
             
         if self.ouKernel is not None:
             
-            jacobian_OU_EnsWeight = -self.inverseKernelRidgeDesign.dot(self.ouKernel.kernelmatrix).dot(self.fittedweight)
+            b = self.ouKernel.kernelmatrix.dot(self.fittedweight)
+            jacobian_OU_EnsWeight = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_OU_EnsWeight = np.copy(jacobian_OU_EnsWeight)
             resultDict.update({'Jacobian_OU_ensweight':jacobian_OU_EnsWeight})
  
-            jacobian_OU_kernelscale = -self.inverseKernelRidgeDesign.dot(self.weight_ouKernel*self.ouKernel.kernelmatrixDerivative).dot(self.fittedweight)
+            b = self.weight_ouKernel*self.ouKernel.kernelmatrixDerivative.dot(self.fittedweight)
+            jacobian_OU_kernelscale = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_OU_kernelscale = np.copy(jacobian_OU_kernelscale)
             resultDict.update({'Jacobian_OU_kernelscale':jacobian_OU_kernelscale})
 
         if self.linearKernel is not None:
-            
-            jacobian_Linear_EnsWeight  = -self.inverseKernelRidgeDesign.dot(self.linearKernel.kernelmatrix).dot(self.fittedweight)
+            b=self.linearKernel.kernelmatrix.dot(self.fittedweight)
+            jacobian_Linear_EnsWeight  = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_Linear_EnsWeight  = np.copy(jacobian_Linear_EnsWeight)
             resultDict.update({'Jacobian_Linear_ensweight':jacobian_Linear_EnsWeight})
             
-        
         if self.automaticrelavanceKernel is not None:
-            jacobian_ARD_EnsWeight = -self.inverseKernelRidgeDesign.dot(self.automaticrelavanceKernel.kernelmatrix).dot(self.fittedweight)
+            
+            b=self.automaticrelavanceKernel.kernelmatrix.dot(self.fittedweight)
+            jacobian_ARD_EnsWeight = -self.inverseKernelRidgeDesign.dot(b)
             self.jacobian_ARD_EnsWeight = np.copy(jacobian_ARD_EnsWeight)
             resultDict.update({'Jacobian_ARD_ensweight':jacobian_ARD_EnsWeight})
             # compute jacobian w.r.t componentwise scales
@@ -515,11 +525,12 @@ class MKLregression:
                 featureDiff = (self.training_X[:,l][:,np.newaxis] - self.training_X[:,l])**2
                 # N-by-N
                 kernelmatrixDeriv = -self.automaticrelavanceKernel.kernelmatrix * featureDiff
-                jacobian_ARD_kernelscale[:,l] = - self.inverseKernelRidgeDesign.dot(self.weight_automaticrelavanceKernel*kernelmatrixDeriv).dot(self.fittedweight).reshape(N)
+                b = self.weight_automaticrelavanceKernel * kernelmatrixDeriv.dot(self.fittedweight) 
+                jacobian_ARD_kernelscale[:,l] = - self.inverseKernelRidgeDesign.dot(b).transpose()
               
             self.jacobian_ARD_kernelscale = np.copy(jacobian_ARD_kernelscale)
             resultDict.update({'Jacobian_ARD_kernelscale':jacobian_ARD_kernelscale})
-            
+        
         return resultDict
     
     
@@ -568,30 +579,43 @@ class MKLregression:
         resultDict.update({'Regularizer':hpg_regularizer})            
         
         if self.squareExponentialKernel is not None:
-            hpg_SQEXP_EnsWeight = -2*(ytrue-ynew)*(sqExpKernel.dot(self.fittedweight)
-                                                    + ensembleKernel.dot(self.jacobian_SqExp_EnsWeight))
-            hpg_SQEXP_kernelscale = -2*(ytrue-ynew)*(self.weight_squareExponentialKernel * sqExpKernelDerivt.dot(self.fittedweight)
-                                                    + ensembleKernel.dot(self.jacobian_SqExp_kernelscale)) 
+            a = sqExpKernel.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_SqExp_EnsWeight)
+            hpg_SQEXP_EnsWeight = -2*(ytrue-ynew)*(a+b)
+            a=self.weight_squareExponentialKernel * sqExpKernelDerivt.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_SqExp_kernelscale)
+            hpg_SQEXP_kernelscale = -2*(ytrue-ynew)*(a+b)
             resultDict.update({'SQEXP_EnsembleWeight':hpg_SQEXP_EnsWeight})
             resultDict.update({'SQEXP_KernelScale':hpg_SQEXP_kernelscale})
 
 
         if self.periodicityKernel is not None:
-            hpg_PRD_EnsWeight = -2*(ytrue-ynew)*(prdKernel.dot(self.fittedweight)
-                                                    + ensembleKernel.dot(self.jacobian_PRD_EnsWeight))
-            hpg_PRD_kernelscale = -2*(ytrue-ynew)*(self.weight_periodicityKernel * prdKernelDerivt_kernelscale.dot(self.fittedweight)
-                                                    + ensembleKernel.dot(self.jacobian_PRD_kernelscale)) 
-            hpg_PRD_period = -2*(ytrue-ynew) * (self.weight_periodicityKernel * prdKernelDerivt_period.dot(self.fittedweight) 
-                                                + ensembleKernel.dot(self.jacobian_PRD_period))
+            a=prdKernel.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_PRD_EnsWeight)
+            hpg_PRD_EnsWeight = -2*(ytrue-ynew)*(a+b)
+            
+            a=self.weight_periodicityKernel * prdKernelDerivt_kernelscale.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_PRD_kernelscale)
+            hpg_PRD_kernelscale = -2*(ytrue-ynew)*(a+b) 
+            
+            a=self.weight_periodicityKernel * prdKernelDerivt_period.dot(self.fittedweight) 
+            b= ensembleKernel.dot(self.jacobian_PRD_period)
+            hpg_PRD_period = -2*(ytrue-ynew) * (a+b)
+                                                
             resultDict.update({'PRD_EnsembleWeight':hpg_PRD_EnsWeight})
             resultDict.update({'PRD_KernelScale':hpg_PRD_kernelscale})
             resultDict.update({'PRD_Period':hpg_PRD_period})
  
         if self.ouKernel is not None:
-            hpg_OU_EnsWeight = -2*(ytrue-ynew)*(ouKernel.dot(self.fittedweight)
-                                                + ensembleKernel.dot(self.jacobian_OU_EnsWeight))
-            hpg_OU_kernelscale = -2*(ytrue-ynew)*(self.weight_ouKernel * ouKernelDerivt.dot(self.fittedweight)
-                                                + ensembleKernel.dot(self.jacobian_OU_kernelscale))
+            
+            a=ouKernel.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_OU_EnsWeight)
+            hpg_OU_EnsWeight = -2*(ytrue-ynew)*(a+b)
+                                                
+            a=self.weight_ouKernel * ouKernelDerivt.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_OU_kernelscale)
+            hpg_OU_kernelscale = -2*(ytrue-ynew)*(a+b)
+                                                
             resultDict.update({'OU_EnsembleWeight':hpg_OU_EnsWeight})
             resultDict.update({'OU_KernelScale':hpg_OU_kernelscale})
             
@@ -602,11 +626,14 @@ class MKLregression:
             
             
         if self.automaticrelavanceKernel is not None:
-            hpg_ARD_EnsWeight = -2*(ytrue-ynew)*(ardKernel.dot(self.fittedweight)
-                                                 + ensembleKernel.dot(self.jacobian_ARD_EnsWeight))
-            hpg_ARD_kernelscale = -2*(ytrue-ynew)*(self.weight_automaticrelavanceKernel * ardKernelDerivt.dot(self.fittedweight)
-                                                 + ensembleKernel.dot(self.jacobian_ARD_kernelscale).reshape(p,1) )
-            
+            a=ardKernel.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_ARD_EnsWeight)
+            hpg_ARD_EnsWeight = -2*(ytrue-ynew)*(a+b)
+                                                 
+            a=self.weight_automaticrelavanceKernel * ardKernelDerivt.dot(self.fittedweight)
+            b=ensembleKernel.dot(self.jacobian_ARD_kernelscale).reshape(p,1)
+            hpg_ARD_kernelscale = -2*(ytrue-ynew)*(a+b)
+                                                 
             resultDict.update({'ARD_EnsembleWeight':hpg_ARD_EnsWeight})
             resultDict.update({'ARD_KernelScale':hpg_ARD_kernelscale})
             

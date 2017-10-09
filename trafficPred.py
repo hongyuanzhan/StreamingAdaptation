@@ -7,7 +7,12 @@ Created on Mon Jul 17 15:20:51 2017
 """
 import numpy as np
 import pandas as pd 
-from RollingBackTestKRR import RollingBackTestKRR
+from mklr import PeriodicKernel
+from mklr import ARDKernel
+from mklr import MKLregression
+from sklearn.kernel_ridge import KernelRidge
+from stmpsgd import OPGD
+from bkt import RollingBackTest
 
 df = pd.read_csv('data/716078_20170101_20170531_15mins.csv',header=None)
 df.columns = ['flow']
@@ -19,24 +24,52 @@ testTimeSeries = flowTimeSeries[96*60+1:]
 
 
 timeSeriesLength = testTimeSeries.shape[0]
-order = 96
+order = 20
 trainingWindow =96*30
 retrainPeriod = 96
+selectionPeriod = 96*30
 horizon = 1
 # hyperparameter update
-# hyperparameter bounds and learning rate
-kernelLB = 0.00005
-kernelUB = 0.001
-regConstLB = 0.1
-regConstUB = 2
-sgdRate = 0.00005
+# construct MKL
+scale = 0.00015
+period = 96*2
+prdKernel = PeriodicKernel(scale,period)
 kernelWidth = 0.00015 * np.ones(order)
-algo = 'sgd'
+autoRelevKernel = ARDKernel(componentwiseScale=kernelWidth)
+lambda_reg = 0.3
+# hyperparameter bounds and learning rate
+regLB = lambda_reg /10
+regUB = lambda_reg * 10
+prdLB = period / 10
+prdUB = period * 10
+scaleLB = scale / 100
+scaleUB = scale * 100
+ensemblweight = np.array([0, 1/2, 0, 0, 1/2],dtype=np.float)
+"""
+stepsize = 0.00005
+backtester = RollingBackTest(testTimeSeries, order, trainingWindow= trainingWindow, horizon=horizon,
+                 retrainPeriod=retrainPeriod,selectionPeriod=selectionPeriod,hyperParameterUpdateOption='sgd',
+                 lambda_reg=lambda_reg, regLB=regLB, regUB=regUB,
+                 periodicityKernel=prdKernel,prdPeriodLB=prdLB, prdPeriodUB=prdUB,prdScaleLB=scaleLB,prdScaleUB=scaleUB,
+                 automaticrelavanceKernel=autoRelevKernel, autoRelevanceLB=scaleLB, autoRelevanceUB=scaleUB,
+                 ensembleWeight= ensemblweight)
+result_sgd0 = backtester.backTesting(centerdata=True,stepsize=stepsize) 
 
-
-
-backtester = RollingBackTestKRR(testTimeSeries, order, trainingWindow, horizon)
-testScores_fixedHP = backtester.backTesting(retrainPeriod,'fixed',componentKernelWidth=kernelWidth)
-testScores_SGDHP = backtester.backTesting(retrainPeriod,algo,componentKernelWidth=kernelWidth,kernelWidthLearningRate=sgdRate,kernelWidthLB=kernelLB,kernelWidthUB=kernelUB)
-SGDimprovement = (testScores_fixedHP.get('mse') - testScores_SGDHP.get('mse')) / testScores_fixedHP.get('mse')
-print("SGD improvments: " + str(SGDimprovement) + '\n')
+stepsize = 0.00005
+maxit = 30
+backtester = RollingBackTest(testTimeSeries, order, trainingWindow= trainingWindow, horizon=horizon,
+                 retrainPeriod=retrainPeriod,selectionPeriod=selectionPeriod,hyperParameterUpdateOption='hoag',
+                 lambda_reg=lambda_reg, regLB=regLB, regUB=regUB,
+                 periodicityKernel=prdKernel,prdPeriodLB=prdLB, prdPeriodUB=prdUB,prdScaleLB=scaleLB,prdScaleUB=scaleUB,
+                 automaticrelavanceKernel=autoRelevKernel, autoRelevanceLB=scaleLB, autoRelevanceUB=scaleUB,
+                 ensembleWeight= ensemblweight)
+result_hoag = backtester.backTesting(centerdata=True,stepsize=stepsize,maxit=maxit) 
+"""
+backtester = RollingBackTest(testTimeSeries, order, trainingWindow= trainingWindow, horizon=horizon,
+                 retrainPeriod=retrainPeriod,selectionPeriod=selectionPeriod,hyperParameterUpdateOption='randomsearch',
+                 lambda_reg=lambda_reg, regLB=regLB, regUB=regUB,
+                 periodicityKernel=prdKernel,prdPeriodLB=prdLB, prdPeriodUB=prdUB,prdScaleLB=scaleLB,prdScaleUB=scaleUB,
+                 automaticrelavanceKernel=autoRelevKernel, autoRelevanceLB=scaleLB, autoRelevanceUB=scaleUB,
+                 ensembleWeight= ensemblweight)
+numberDraws = 10
+result_random = backtester.backTesting(centerdata=True,numberDraws=10 )
